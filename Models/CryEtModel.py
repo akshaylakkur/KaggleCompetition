@@ -9,8 +9,12 @@ from torch.utils.data import Dataset, DataLoader, TensorDataset
 
 
 'File setup'
-trainingFile = '/Users/akshaylakkur/GitHub/KaggleCompetition/data/train/static/ExperimentRuns/TS_69_2/VoxelSpacing10.000/denoised.zarr'
-coordsFile = '/Users/akshaylakkur/PycharmProjects/KaggleComp/FiveParticlesData.csv'
+imageNum = input('image number: ')
+trainingFile = f'/Users/akshaylakkur/GitHub/KaggleCompetition/data/train/static/ExperimentRuns/TS_{imageNum}/VoxelSpacing10.000/denoised.zarr'
+coordsFile = f'/Users/akshaylakkur/PycharmProjects/KaggleComp/SortedCoordsFiles/FiveParticlesDataTS_{imageNum}.csv'
+
+retrieveDataLength = len(pd.read_csv(coordsFile)['Class'])
+
 
 class CryEtDataset(Dataset):
     def __init__(self, image, data, transform=None):
@@ -20,6 +24,7 @@ class CryEtDataset(Dataset):
         self.transform = transform
         'extract info'
         self.coordinates = torch.tensor(self.data[['x', 'y', 'z']].values, dtype=torch.float32)
+        self.coordinates = self.coordinates / 10
         self.labels = torch.tensor(self.data[['Class']].values, dtype=torch.long)
         'create bbox'
         radiusDelta = 3
@@ -39,7 +44,7 @@ class CryEtDataset(Dataset):
         }
         image = self.image
         if self.transform:
-            image = self.transform(image, 6).expand(131, -1, -1, -1, -1)
+            image = self.transform(image, 30).expand(retrieveDataLength, -1, -1, -1, -1) #modify the size - just to test so that my comp. doesn't crash
         return dataset, image
 
 'plot the 3d figure'
@@ -165,23 +170,22 @@ dataloader = DataLoader(TensorData, batch_size=32, shuffle=False)
 
 trueLabels = []
 trueLabels.append(data['labels'])
-print(f'truth labels: {trueLabels}')
 
 'activate model'
 model = CryEtModel(1, 32, 5)
-testImage = torch.randn(size=(131, 1, 5, 10, 10))
+testImage = torch.randn(size=(retrieveDataLength, 1, 5, 10, 10))
 
 'set up loss & optimizers'
-classCriterion = nn.CrossEntropyLoss()
-regressiveLoss = nn.SmoothL1Loss()
-Adam = torch.optim.Adam(model.parameters(), lr=0.001)
+# classCriterion = nn.CrossEntropyLoss()
+# regressiveLoss = nn.SmoothL1Loss()
+Adam = torch.optim.Adam(model.parameters(), lr=0.01)
 classLoss = []
 boxLoss = []
 
 predLabels = []
 predBox = []
 
-epochs = 5
+epochs = 20
 for epoch in range(epochs):
     model.train()
 
@@ -189,19 +193,20 @@ for epoch in range(epochs):
         boxCoords, classes = batch
         Adam.zero_grad()
 
-        c, bc, cl, bl = model(image, target_bboxes={'labels' : data['labels'].squeeze(1), 'bbox' : data['bbox']})
+        c, bc, cl, bl = model(testImage, target_bboxes={'labels' : data['labels'].squeeze(1), 'bbox' : data['bbox']})
+        # cl = classCriterion(c, data['labels'])
+        # bl = regressiveLoss(bc, data['bbox'])
         Loss = cl + bl
         Loss.backward()
         Adam.step()
 
         predClassLabels = torch.argmax(c, dim=1)
-        predBoundingBox = torch.argmax(bc, dim=1)
         predLabels.append(predClassLabels)
-        predBox.append(predBoundingBox)
+        predBox.append(bc)
 
-    classLoss.append(cl.item())
-    boxLoss.append(bl.item())
-print(f'pred labels: {predLabels[-1]}')
+        classLoss.append(cl.item())
+        boxLoss.append(bl.item())
+print(f'pred labels: {predLabels}')
 
 print(f'class loss: {classLoss}')
 print(f'box loss: {boxLoss}')
