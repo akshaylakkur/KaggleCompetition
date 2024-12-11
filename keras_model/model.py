@@ -72,11 +72,13 @@ def main():
     # Protien detection
     structure = (
             (3, 8, (2,2,2)), # filters, kernel, strides
-            (9, 8, (2,2,2)),
+            (10, 8, (2,2,2)),
+            (9, 8, 1)
             )
     pools = (
             (2,1,1),
-            (2,3,3)
+            (2,3,3),
+            (2,2,2)
             )
     pd = i1
     lys = []
@@ -155,9 +157,9 @@ def main():
     model.compile(
             optimizer=keras.optimizers.LossScaleOptimizer(keras.optimizers.Nadam(
                 learning_rate=keras.optimizers.schedules.ExponentialDecay(
-                    initial_learning_rate=1e-2,
+                    initial_learning_rate=3e-3,
                     decay_steps=1e4,
-                    decay_rate=0.93,
+                    decay_rate=0.96,
                     staircase=False
                     )
                 )),

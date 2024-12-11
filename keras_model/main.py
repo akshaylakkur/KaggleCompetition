@@ -6,7 +6,7 @@ import model
 
 mdl = model.main()
 xi, yi = read.data()
-mdl.fit(xi, yi, epochs=1000, batch_size=10)
+mdl.fit(xi, yi, epochs=100, batch_size=10)
 
 xtest, ytest = read.data(True)
 #print(xtest.shape)

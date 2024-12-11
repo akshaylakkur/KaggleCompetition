@@ -38,7 +38,7 @@ def data(istest=False):
 
 def load(exp_no: str) -> (np.array, np.array):
     questions = [
-        zarr.load(f'../data/train/static/ExperimentRuns/TS_{exp_no}/VoxelSpacing10.000/{typ}.zarr')[1]
+        zarr.load(f'../data/train/static/ExperimentRuns/TS_{exp_no}/VoxelSpacing10.000/{typ}.zarr')[0]
         for typ in (
             'denoised',
             'ctfdeconvolved',
