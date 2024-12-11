@@ -2,15 +2,8 @@ import const
 import keras
 import numpy as np
 
-@keras.saving.register_keras_serializable("compare")
-def compare(yt, yp):
-    yt,yp = yt[0],yp[0]
-    sh = yt.shape
-    to_shape = ((0,const.num_predict-yt.shape[0]),(0,0))
-    yt = keras.ops.pad(yt,to_shape)
-    
-    m = ((yt-yp)**2).mean()
-    return m
+#@keras.saving.register_keras_serializable("compare")
+#def compare(yt, yp):
 #    print(y_true.shape)
 #    print(y_pred.shape)
 #    
@@ -78,12 +71,12 @@ def main():
     
     # Protien detection
     structure = (
-            (3, 8, (3,3,3)), # filters, kernel, strides
-            (9, 4, (3,3,3)),
+            (3, 8, (2,2,2)), # filters, kernel, strides
+            (9, 8, (2,2,2)),
             )
     pools = (
             (2,1,1),
-            (2,7,7)
+            (2,3,3)
             )
     pd = i1
     lys = []
@@ -102,18 +95,22 @@ def main():
         pd = pd2(pd1(pd))
     
     r1 = keras.layers.Reshape((prod(pd.shape[1:-1]) , pd.shape[-1]))(pd)
-    r2 = keras.layers.Permute((2,1))(r1)
-    r = r2
     
-#    d1 = keras.layers.Dense(_num_predict//10)(r)
-#    d1 = keras.layers.Dense(const.num_predict, activation="sigmoid")(r)
-    d1 = keras.layers.Conv1D(
-            filters=const.num_predict,
-            kernel_size=10,
-            padding="same",
-            activation="sigmoid")(r)
-    d = d1
+    dl1l = keras.layers.Dense(6, activation="sigmoid")(r1)
+    dl1r = keras.layers.Dense(3, activation="leaky_relu")(r1)
+    dl1 = keras.layers.Concatenate()([dl1r, dl1l])
     
+    r2 = keras.layers.Permute((2,1))(dl1)
+    
+    #d1 = keras.layers.Dense(_num_predict//10)(r)
+    dl2 = keras.layers.Dense(const.num_predict, activation="leaky_relu")(r2)
+    #d1 = keras.layers.Conv1D(
+    #        filters=const.num_predict,
+    #        kernel_size=10,
+    #        padding="same",
+    #        activation="sigmoid")(r)
+    
+    d = dl2
     o = keras.layers.Permute((2,1))(d)
     model = keras.Model(inputs=i, outputs=o)
     
@@ -157,14 +154,19 @@ def main():
     
     model.compile(
             optimizer=keras.optimizers.LossScaleOptimizer(keras.optimizers.Nadam(
-                learning_rate=1e-4,
+                learning_rate=keras.optimizers.schedules.ExponentialDecay(
+                    initial_learning_rate=1e-2,
+                    decay_steps=1e4,
+                    decay_rate=0.93,
+                    staircase=False
+                    )
                 )),
-            loss=compare
-            #        metrics=[
-            #            "mae",
-            #            "mse",
-            #            "binary crossentropy"
-            #            ]
+            loss="mse",
+            metrics=[
+                "mae",
+                #"mse",
+                #"binary_crossentropy"
+                ]
             )
     model.summary()
     return model

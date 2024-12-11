@@ -30,14 +30,22 @@ def data(istest=False):
     x = []
     y = []
     for exp in ls:
-        xi, yi = load(exp)
-        yi = resize(yi)
-        x.append(xi)
-        y.append(yi)
+        for xi,yi in load(exp):
+            yi = resize(yi)
+            x.append(xi)
+            y.append(yi)
     return np.array(x), np.array(y)
 
 def load(exp_no: str) -> (np.array, np.array):
-    question = zarr.load(f'../data/train/static/ExperimentRuns/TS_{exp_no}/VoxelSpacing10.000/denoised.zarr')[1]
+    questions = [
+        zarr.load(f'../data/train/static/ExperimentRuns/TS_{exp_no}/VoxelSpacing10.000/{typ}.zarr')[1]
+        for typ in (
+            'denoised',
+            'ctfdeconvolved',
+            'isonetcorrected',
+            'wbp'
+            )
+        ]
     answer = []
 #    answer = np.zeros(const.data_out)
     
@@ -70,5 +78,6 @@ def load(exp_no: str) -> (np.array, np.array):
 #                            max(floor(pz-5), const.data_out[2]),
 #                            max(ceil(pz+5), const.data_out[2])):
 #                        answer[z, x, y, p] = 1
-    return question, answer
+    for qn in questions:
+        yield qn, answer
 

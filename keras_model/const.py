@@ -9,4 +9,5 @@ scale = out_scale*acc_scale
 data_out = tuple(int(dim*scale) for dim in base_shape)+(6,)
 
 num_predict = 240
-batch = 5
+
+mdnum = "00"

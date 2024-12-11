@@ -7,14 +7,12 @@ from torch.nn import functional as F
 import pandas as pd
 from torch.utils.data import Dataset, DataLoader, TensorDataset
 
-
 'File setup'
 imageNum = input('image number: ')
-trainingFile = f'/Users/akshaylakkur/GitHub/KaggleCompetition/data/train/static/ExperimentRuns/TS_{imageNum}/VoxelSpacing10.000/denoised.zarr'
-coordsFile = f'/Users/akshaylakkur/PycharmProjects/KaggleComp/SortedCoordsFiles/FiveParticlesDataTS_{imageNum}.csv'
+trainingFile = f'../data/train/static/ExperimentRuns/TS_{imageNum}/VoxelSpacing10.000/denoised.zarr'
+coordsFile =   f'../data/SortedCoordsFiles/FiveParticlesDataTS_{imageNum}.csv'
 
 retrieveDataLength = len(pd.read_csv(coordsFile)['Class'])
-
 
 class CryEtDataset(Dataset):
     def __init__(self, image, data, transform=None):
@@ -172,7 +170,7 @@ trueLabels = []
 trueLabels.append(data['labels'])
 
 'activate model'
-model = CryEtModel(1, 32, 5)
+model = CryEtModel(1, 256, 5)
 testImage = torch.randn(size=(retrieveDataLength, 1, 5, 10, 10))
 
 'set up loss & optimizers'
