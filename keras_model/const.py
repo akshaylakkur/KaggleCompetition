@@ -10,4 +10,4 @@ data_out = tuple(int(dim*scale) for dim in base_shape)+(6,)
 
 num_predict_per = 100
 
-mdnum = "02"
+mdnum = "07"

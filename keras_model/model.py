@@ -11,14 +11,14 @@ def main():
     
     # Protien detection
     structure = (
-            (3, 8, (2,2,2)), # filters, kernel, strides
-            (10, 8, (2,2,2)),
-            (9, 8, 1)
+            (3, 9, (2,2,2)), # filters, kernel, strides
+            (9, 9, (2,2,2)),
+            (9, 9, 1)
             )
     pools = (
             (2,1,1),
             (2,3,3),
-            (2,2,2)
+            (1,2,2)
             )
     pd = i1
     lys = []
@@ -39,7 +39,7 @@ def main():
     r1 = keras.layers.Reshape((prod(pd.shape[1:-1]) , pd.shape[-1]))(pd)
     
     dl1l = keras.layers.Dense(6, activation="sigmoid")(r1)
-    dl1r = keras.layers.Dense(3, activation="leaky_relu")(r1)
+    dl1r = keras.layers.Dense(3)(r1)
     dl1 = keras.layers.Concatenate()([dl1r, dl1l])
     d1 = keras.layers.Permute((2,1))(dl1)
     
@@ -63,12 +63,13 @@ def main():
     model.compile(
             optimizer=keras.optimizers.LossScaleOptimizer(keras.optimizers.Adamax(
                 learning_rate=keras.optimizers.schedules.ExponentialDecay(
-                    initial_learning_rate=3e-3,
-                    decay_steps=1e3,
-                    decay_rate=0.96,
-                    staircase=False
-                    )
-                )),
+                        initial_learning_rate=3e-3,
+                        decay_steps=1e3,
+                        decay_rate=0.93,
+                        staircase=False
+                        )
+                )
+                ),
             loss="mse",
             metrics=[
                 "mae",
@@ -78,4 +79,8 @@ def main():
             )
     model.summary()
     return model
+
+@keras.saving.register_keras_serializable("calibrated_loss")
+def calibrated_loss(y_true, y_pred):
+    for
 
