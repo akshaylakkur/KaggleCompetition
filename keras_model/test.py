@@ -1,5 +1,6 @@
 import const
 import read
+import model
 import keras
 
 mdl = keras.models.load_model(f"saved-models/{const.mdnum}.keras")

@@ -15,13 +15,6 @@ test = (
         '99_9',
         )
 
-def resize(arr):
-    arr = np.array(arr)
-    sh = arr.shape
-    to_shape = ((0,const.num_predict_per-arr.shape[0]),(0,0))
-    arr = np.pad(arr,to_shape)
-    return arr
-
 def data(istest=False):
     if istest:
         ls = test
@@ -63,8 +56,12 @@ def load(exp_no: str) -> (np.array, np.array):
         for pt in dt:
             loc = pt['location']
             px, py, pz = loc['x'], loc['y'], loc['z']
-            typ.append([px,py,pz]+pad(p))
-        answer.extend(resize(typ))
+            typ.append([px,py,pz])#+pad(p))
+        typ.extend([
+            [0,0,0]#+pad(p)
+            for i in range(const.num_predict_per-len(typ))
+            ])
+        answer.extend(typ)
     for qn in questions:
         yield qn, answer
 
