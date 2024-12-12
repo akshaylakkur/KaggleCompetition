@@ -25,7 +25,7 @@ def data(istest=False):
     for exp in ls:
         for xi,yi in load(exp):
             x.append(xi)
-            y.append(yi)
+            y.append(np.array(yi).ravel())
     return np.array(x), np.array(y)
 
 def load(exp_no: str) -> (np.array, np.array):

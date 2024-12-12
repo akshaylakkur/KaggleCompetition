@@ -2,19 +2,18 @@ import const
 import keras
 import numpy as np
 
-@keras.saving.register_keras_serializable("Format")
-class Format(keras.layers.Layer):
+@keras.saving.register_keras_serializable("Scale")
+class Scale(keras.layers.Layer):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        self.f = self.add_weight(
+            shape=(),
+            initializer="random_normal",
+            trainable=True,
+            )
     
     def __call__(self, i):
-        l = i[:, :, :3]
-        
-        r = i[:, :, 3:]
-        r = keras.ops.sigmoid(r)
-        r2 = 6*keras.ops.average(r, axis=-1)
-        r = r / r2[:, :, np.newaxis]
-        return keras.ops.concatenate((l, r), axis=-1)
+        return  i * self.f
     
     def get_config(self):
         return super().get_config()
@@ -29,12 +28,14 @@ def main():
     structure = (
             (5, 5, 2), # filters, kernel, strides
             (15, 5, 1),
-            (3, 9, 2)
+            (20, 8, 1),
+            (9, 9, 2)
             )
     pools = (
             (2,1,1),
             (1,2,2),
-            (2,2,2)
+            (2,1,1),
+            (1,2,2),
             )
     pd = i
     for (filters, kernel, strides), pool in zip(structure, pools):
@@ -52,46 +53,37 @@ def main():
             )(pd)
     pd = keras.layers.Reshape((prod(pd.shape[1:-1]) , pd.shape[-1]))(pd)
     
+    # Ability to sort
+    ssize = (2,2,2)
+    us = prod(ssize)
     d11 = keras.layers.Permute((2,1))(pd)
     d12 = keras.layers.Dense(
         6*const.num_predict_per,
         activation="leaky_relu",
-        kernel_regularizer="l2",
-        bias_regularizer="l2"
+        #kernel_regularizer="l2",
+        #bias_regularizer="l2"
         )(d11)
     d13 = keras.layers.Dense(
-        4*6*const.num_predict_per,
+        us*6*const.num_predict_per,
         activation="leaky_relu",
-        kernel_regularizer="l2",
-        bias_regularizer="l2"
+        #kernel_regularizer="l2",
+        #bias_regularizer="l2"
         )(d12)
-    d14 = keras.layers.MaxPooling1D(
-        pool_size=2,
-        data_format="channels_first",
-        padding="valid",
-        )(d13)
-    d15 = keras.layers.Dense(
-        2*6*const.num_predict_per,
-        activation="leaky_relu",
-        kernel_regularizer="l2",
-        bias_regularizer="l2"
-        )(d14)
-    d16 = keras.layers.MaxPooling1D(
-        pool_size=2,
-        data_format="channels_first",
-        padding="valid",
-        )(d15)
-    d17 = keras.layers.Dense(
-        6*const.num_predict_per,
-        activation="leaky_relu",
-        kernel_regularizer="l2",
-        bias_regularizer="l2"
-        )(d16)
-    d1 = d17
+    op = d13
+    for s in ssize:
+        op = Scale()(op)
+        op = keras.layers.MaxPooling1D(
+            pool_size=s,
+            data_format="channels_first",
+            padding="valid",
+            )(op)
+    op = keras.layers.Flatten()(op)
     
-    o1 = keras.layers.Permute((2,1))(d1)
-    #o2 = Format()(o1)
-    o = o1
+    o1 = Scale()(op)
+    o2 = keras.layers.Dense(
+        3*6*const.num_predict_per,
+        )(o1)
+    o = o2
     model = keras.Model(inputs=i, outputs=o)
     
     model.compile(
@@ -104,45 +96,11 @@ def main():
                         )
                 )
                 ),
-            loss="mse",#calibrated_loss,
+            loss="mse",
             metrics=[
                 "mae",
-                #"mse",
-                #mse_first,
-                #cce_last,
-                #joint_loss
                 ]
             )
     model.summary()
     return model
 
-@keras.saving.register_keras_serializable("calibrated_loss")
-def calibrated_loss(y_true, y_pred):
-    weight_mse = 1e-8
-    weight_cce = 1-weight_mse
-    
-    wmse = mse_first(y_true, y_pred)
-    wcce = cce_last(y_true, y_pred)
-    return weight_mse*wmse + weight_cce*wcce
-
-@keras.saving.register_keras_serializable("joint_loss")
-def joint_loss(y_true, y_pred):
-    wmse = mse_first(y_true, y_pred)
-    wcce = cce_last(y_true, y_pred)
-    return wmse * wcce
-
-@keras.saving.register_keras_serializable("mse_first")
-def mse_first(y_true, y_pred):
-    yt = y_true[:, :, :3]
-    yp = y_pred[:, :, :3]
-    return ((yt-yp)**2).sum(axis=-1)
-
-@keras.saving.register_keras_serializable("cce_last")
-def cce_last(y_true, y_pred):
-    yt = y_true[:, :, 3:]
-    yp = y_pred[:, :, 3:]
-    
-    return keras.losses.CategoricalCrossentropy(
-        from_logits=False,
-        reduction=None
-        )(yt, yp)
