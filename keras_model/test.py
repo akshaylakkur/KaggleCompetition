@@ -2,8 +2,14 @@ import const
 import read
 import model
 import keras
+import sys
 
-mdl = keras.models.load_model(f"saved-models/{const.mdnum}.keras")
+if len(sys.argv)>1:
+    num = sys.argv[1]
+else:
+    num = const.mdnum
+
+mdl = keras.models.load_model(f"./saved-models/{num}.keras")
 mdl.summary()
 
 head = 3
