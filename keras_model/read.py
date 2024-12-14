@@ -25,7 +25,7 @@ def data(istest=False):
     for exp in ls:
         for xi,yi in load(exp):
             x.append(xi)
-            y.append(np.array(yi).ravel())
+            y.append(yi)
     return np.array(x), np.array(y)
 
 def load(exp_no: str) -> (np.array, np.array):
@@ -61,7 +61,7 @@ def load(exp_no: str) -> (np.array, np.array):
             [0,0,0]#+pad(p)
             for i in range(const.num_predict_per-len(typ))
             ])
-        answer.extend(typ)
+        answer.append(typ)
     for qn in questions:
         yield qn, answer
 

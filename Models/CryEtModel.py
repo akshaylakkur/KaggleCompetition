@@ -7,22 +7,31 @@ from torch.nn import functional as F
 import pandas as pd
 from torch.utils.data import Dataset, DataLoader, TensorDataset
 
-'File setup'
-imageNum = input('image number: ')
-trainingFile = f'../data/train/static/ExperimentRuns/TS_{imageNum}/VoxelSpacing10.000/denoised.zarr'
-coordsFile =   f'../data/SortedCoordsFiles/FiveParticlesDataTS_{imageNum}.csv'
-
 retrieveDataLength = len(pd.read_csv(coordsFile)['Class'])
 
+# import torch_xla
+# import torch_xla.core.xla_model as xm
+# import torch_xla.distributed.data_parallel as dp
+# import torch_xla.distributed.xla_multiprocessing as xmp
+'File setup'
+imageNum = input('image number: ')
+
+# trainingFile = f'/home/cde1/ml/akshay/ransModelRelated/DenoisedData/denoised_{imageNum}.zarr'
+# coordsFile = f'/home/cde1/ml/akshay/ransModelRelated/SortedCoordsFiles/FiveParticlesDataTS_{imageNum}.csv'
+trainingFile = f'/Users/akshaylakkur/GitHub/KaggleCompetition/data/train/static/ExperimentRuns/TS_{imageNum}/VoxelSpacing10.000/denoised.zarr'
+coordsFile = f'/Users/akshaylakkur/PycharmProjects/KaggleComp/SortedCoordsFiles/FiveParticlesDataTS_{imageNum}.csv'
+
+retrieveDataLength = len(pd.read_csv(coordsFile)['Class'])
 class CryEtDataset(Dataset):
     def __init__(self, image, data, transform=None):
         'image setup'
         self.image = torch.from_numpy(np.array(zarr.open(image)[0])).unsqueeze(0).unsqueeze(0).float()
+       
         self.data = pd.read_csv(data)
         self.transform = transform
         'extract info'
         self.coordinates = torch.tensor(self.data[['x', 'y', 'z']].values, dtype=torch.float32)
-        self.coordinates = self.coordinates / 10
+        #self.coordinates = self.coordinates / 10
         self.labels = torch.tensor(self.data[['Class']].values, dtype=torch.long)
         'create bbox'
         radiusDelta = 3
@@ -42,36 +51,9 @@ class CryEtDataset(Dataset):
         }
         image = self.image
         if self.transform:
-            image = self.transform(image, 30).expand(retrieveDataLength, -1, -1, -1, -1) #modify the size - just to test so that my comp. doesn't crash
-        return dataset, image
-
-'plot the 3d figure'
-def plot3DFig(image, sliceIndex):
-    'clean up tensor format'
-    image = image.squeeze(0).squeeze(0).numpy()
-
-    fig = plt.figure(figsize=(12, 10))
-    ax = fig.add_subplot(projection='3d')
-
-    # Extract the slice for plotting
-    slice_2d = image[:, :, sliceIndex]  # Slicing along the first dimension (z-axis)
-
-    # Create the x, y grid for the slice
-    x = np.arange(slice_2d.shape[1])
-    y = np.arange(slice_2d.shape[0])
-    x, y = np.meshgrid(x, y)
-
-    # Plot the 2D slice in 3D space
-    ax.plot_surface(x, y, np.full_like(slice_2d, sliceIndex), rstride=1, cstride=1,
-                    facecolors=plt.cm.viridis(slice_2d / np.max(slice_2d)),
-                    shade=False,
-                    cmap='grey')
-
-    ax.set_xlabel('X')
-    ax.set_ylabel('Y')
-    ax.set_zlabel('Z')
-    ax.set_title(f"3D Plot of Slice {sliceIndex}")
-    plt.show()
+            image = self.transform(image, 20).expand(retrieveDataLength, -1, -1, -1, -1)
+            #print(f'image shape: {image.shape}')
+            return dataset, image
 
 'transform shape to shrink it for better processing and training'
 def transform(image, size, squeeze=False):
@@ -113,7 +95,7 @@ class CryEtModel(nn.Module):
             nn.Dropout(0.5),
             nn.Linear(512, 512),
             nn.ReLU(),
-            nn.Linear(512, numClasses) # total classes
+            nn.Linear(512, numClasses)  # total classes
         )
 
         'regression function'
@@ -124,66 +106,76 @@ class CryEtModel(nn.Module):
             nn.Dropout(0.5),
             nn.Linear(1024, 1024),
             nn.ReLU(),
-            nn.Linear(1024, 6) #6 coordinates for bounding box points
+            nn.Linear(1024, 6)  # 6 coordinates for bounding box points
         )
 
     def forward(self, x, target_bboxes=None):
         'Extract Features'
         features = self.featureExtract(x)
-        #print(f'features shape: {features.shape}')
+        # print(f'features shape: {features.shape}')
 
         'Pass Through ROI Layer'
         proposals = self.RPN(features)
-        #print(f'proposals shape: {proposals.shape}')
+        # print(f'proposals shape: {proposals.shape}')
 
         'Through Adaptive Pooling'
         poolSolutions = self.ROIPooling(proposals)
-        #print(f'pool solutions: {poolSolutions.shape}')
+        # print(f'pool solutions: {poolSolutions.shape}')
 
         poolSolutions = poolSolutions.view(poolSolutions.size(0), -1)
-        #print(f'pool solutions after view: {poolSolutions.shape}')
+        # print(f'pool solutions after view: {poolSolutions.shape}')
 
         'Through Classification - for probability'
         classification = self.Classification(poolSolutions)
-        #print(f'Classification Shape: {classification.shape}')
+        # print(f'Classification Shape: {classification.shape}')
 
         'Through Regression - get bbox coords'
         bboxCoords = self.boundingRegressor(poolSolutions)
-        #print(f'Bounding box shapes: {bboxCoords.shape}')
+        # print(f'Bounding box shapes: {bboxCoords.shape}')
 
         if target_bboxes is not None:
-            # During training, calculate losses: classification loss and bounding box regression loss
-            classification_loss = F.cross_entropy(classification, target_bboxes['labels'])  # Use ground truth labels
-            bbox_loss = F.smooth_l1_loss(bboxCoords, target_bboxes['bbox'])  # Compare with ground truth bounding box
-            return classification, bboxCoords, classification_loss, bbox_loss
+            classification_loss = classCriterion(classification, target_bboxes['labels'])  # Use ground truth labels
+            bbox_loss = regressiveLoss(bboxCoords, target_bboxes['bbox'])  # Compare with ground truth bounding box
+            Loss = classification_loss + bbox_loss
+            Loss.backward()
+            Adam.step()
+
+            return classification, bboxCoords, Loss.item()
         else:
             return classification, bboxCoords
 
 'prepare data'
 dataset = CryEtDataset(trainingFile, coordsFile, transform=transform)
 data, image = dataset.getitem()
+print(f'image shape: {image.shape}')
 
 TensorData = TensorDataset(data['bbox'], data['labels'])
 dataloader = DataLoader(TensorData, batch_size=32, shuffle=False)
 
 trueLabels = []
 trueLabels.append(data['labels'])
+print([i for i in data['labels']], end="")
+print(f"true bbox coords: {data['bbox']}")
+
 
 'activate model'
-model = CryEtModel(1, 256, 5)
+
+model = CryEtModel(1, 64, 5)#.to(device)
+
 testImage = torch.randn(size=(retrieveDataLength, 1, 5, 10, 10))
 
 'set up loss & optimizers'
-# classCriterion = nn.CrossEntropyLoss()
-# regressiveLoss = nn.SmoothL1Loss()
+classCriterion = nn.CrossEntropyLoss()#.to(device)
+regressiveLoss = nn.SmoothL1Loss()#.to(device)
 Adam = torch.optim.Adam(model.parameters(), lr=0.01)
-classLoss = []
-boxLoss = []
+Loss = []
 
 predLabels = []
 predBox = []
+predLabelsFull = []
 
-epochs = 20
+
+epochs = 1001
 for epoch in range(epochs):
     model.train()
 
@@ -191,33 +183,38 @@ for epoch in range(epochs):
         boxCoords, classes = batch
         Adam.zero_grad()
 
-        c, bc, cl, bl = model(testImage, target_bboxes={'labels' : data['labels'].squeeze(1), 'bbox' : data['bbox']})
+        c, bc, loss = model(image, target_bboxes={'labels': data['labels'].squeeze(1), 'bbox': data['bbox']})
+        # c, bc = model(image.to(device), target_bboxes={'labels' : data['labels'].squeeze(1).to(device), 'bbox' : data['bbox'].to(device)})
         # cl = classCriterion(c, data['labels'])
         # bl = regressiveLoss(bc, data['bbox'])
-        Loss = cl + bl
-        Loss.backward()
-        Adam.step()
-
+        # Loss = cl + bl
+        # Loss.backward()
+        # Adam.step()
+        #xm.optimizer_step(Adam)
+        c = torch.softmax(c, dim=1)
+        predLabelsFull.append(c)
         predClassLabels = torch.argmax(c, dim=1)
         predLabels.append(predClassLabels)
         predBox.append(bc)
+        Loss.append(loss)
 
-        classLoss.append(cl.item())
-        boxLoss.append(bl.item())
-print(f'pred labels: {predLabels}')
+    if epoch % 250 == 0:
+        print(f'epoch: {epoch}')
+        print(f'Length of Subset: {len(predLabelsFull[-1])}')
+        print(f'All 6 points for classification: {predLabelsFull[-1]}')
+        print(f'pred labels: {predLabels[-1]}')
+        print(f'pred coordinates: {predBox[-1]}')
+        print(f'total loss: {Loss[-1]}')
 
-print(f'class loss: {classLoss}')
-print(f'box loss: {boxLoss}')
+#plt.figure()
+#plt.plot(Loss)
+#plt.title('Class Loss')
+#plt.grid(True)
+#plt.show()
 
-plt.figure()
-plt.plot(classLoss)
-plt.title('Class Loss')
-plt.grid(True)
-plt.show()
 
-plt.figure()
-plt.plot(boxLoss)
-plt.title('Box Loss')
-plt.grid(True)
-plt.show()
+
+
+
+
 
