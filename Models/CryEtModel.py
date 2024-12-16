@@ -7,8 +7,6 @@ from torch.nn import functional as F
 import pandas as pd
 from torch.utils.data import Dataset, DataLoader, TensorDataset
 
-retrieveDataLength = len(pd.read_csv(coordsFile)['Class'])
-
 # import torch_xla
 # import torch_xla.core.xla_model as xm
 # import torch_xla.distributed.data_parallel as dp
