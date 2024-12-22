@@ -80,14 +80,14 @@ class CryEtModel(nn.Module):
             nn.Conv3d(hidden_size, hidden_size, kernel_size=3, padding=1),
             nn.Flatten(),
             nn.ReLU(),
-            nn.Linear(hidden_size*48, hidden_size),
+            nn.Linear(hidden_size*8, hidden_size),
             nn.ReLU(),
             nn.Linear(hidden_size, numClasses)
         )
 
         self.boundingRegression = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(hidden_size*48, hidden_size),
+            nn.Linear(hidden_size*8, hidden_size),
             nn.ReLU(),
             nn.Linear(hidden_size, hidden_size),
             nn.ReLU(),
@@ -97,35 +97,35 @@ class CryEtModel(nn.Module):
 
     def forward(self, image):
         features = self.featureExtract(image)
-        print(features.shape)
+        # print(features.shape)
         proposals = self.RPN(features)
-        print(proposals.shape)
+        # print(proposals.shape)
         classification = self.classification(proposals)
-        print(classification.shape)
+        # print(classification.shape)
         bboxes = self.boundingRegression(proposals)
         return classification, bboxes
 
 dataset = CryEtDataset(trainingFile, data, transform=None)
 dataset, image = dataset.ToDataset()
 
-test = torch.randn(size=(130, 1, 4,4,4))
+# test = torch.randn(size=(dataLength, 1, 4,4,4))
 model = CryEtModel(1, 5, 5)
-y = model(test)
+# y = model(test)
 'set up dataset'
 dataset = TensorDataset(dataset['bbox'], dataset['labels'])
-dataloader = DataLoader(dataset, batch_size=32, shuffle=True)
-
-for item in dataloader:
-    for x in item[0]:
-        print(image[:, :, int(x[4]):int(x[5]), int(x[2]):int(x[3]), int(x[0]):int(x[1])].shape)
-        break
+dataloader = DataLoader(dataset, batch_size=dataLength, shuffle=True)
+#
+# for item in dataloader:
+#     for x in item[0]:
+#         print(image[:, :, int(x[4]):int(x[5]), int(x[2]):int(x[3]), int(x[0]):int(x[1])].shape)
+#         break
 
 
 'set up losses and optimizers along with training lists'
 classificationCriterion = nn.CrossEntropyLoss()
 regressionCriterion = nn.MSELoss()
 Adam = optim.Adam(model.parameters(), lr=0.001)
-epochs = 1
+epochs = 10
 
 predLabels = []
 predBoxes = []
@@ -137,9 +137,10 @@ for epoch in range(epochs):
     for item in dataloader:
         for x in item[0]:
             c, bb = model(image[:, :, int(x[4]):int(x[5]), int(x[2]):int(x[3]), int(x[0]):int(x[1])])
-            classLoss = classificationCriterion(c, item[1])
-            regressionLoss = regressionCriterion(bb, item[0])
+            classLoss = classificationCriterion(c, item[1].squeeze())
+            regressionLoss = regressionCriterion(bb, item[0].squeeze())
             Loss = classLoss + regressionLoss
+            print('passed')
             Loss.backward()
             Adam.step()
             labels = torch.argmax(c, dim=1)
