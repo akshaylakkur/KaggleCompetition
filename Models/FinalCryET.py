@@ -15,9 +15,9 @@ from torch.utils.data import Dataset, DataLoader, TensorDataset
 
 
 'training file local'
-imageNum = input('image number: ')
-trainingFile = f'../data/train/static/ExperimentRuns/TS_{imageNum}/VoxelSpacing10.000/denoised.zarr'
-coordsFile = f'../data/SortedCoordsFiles/FiveParticlesDataTS_{imageNum}.csv'
+#imageNum = input('image number: ')
+trainingFile = f'/Users/akshaylakkur/GitHub/KaggleCompetition/data/train/static/ExperimentRuns/TS_5_4/VoxelSpacing10.000/denoised.zarr'
+coordsFile = f'/Users/akshaylakkur/PycharmProjects/KaggleComp/SortedCoordsFiles/FiveParticlesDataTS_5_4.csv'
 
 'training file Kaggle'
 # trainingFile = f'/kaggle/input/czii-cryo-et-object-identification/train/static/ExperimentRuns/TS_{imageNum}/VoxelSpacing10.000/denoised.zarr'
@@ -108,19 +108,24 @@ class CryEtModel(nn.Module):
 dataset = CryEtDataset(trainingFile, data, transform=None)
 dataset, image = dataset.ToDataset()
 
-#test = torch.randn(size=(130, 1, 5, 6, 6))
+test = torch.randn(size=(130, 1, 4,4,4))
 model = CryEtModel(1, 5, 5)
-
+y = model(test)
 'set up dataset'
 dataset = TensorDataset(dataset['bbox'], dataset['labels'])
 dataloader = DataLoader(dataset, batch_size=32, shuffle=True)
+
+for item in dataloader:
+    for x in item[0]:
+        print(image[:, :, int(x[4]):int(x[5]), int(x[2]):int(x[3]), int(x[0]):int(x[1])].shape)
+        break
 
 
 'set up losses and optimizers along with training lists'
 classificationCriterion = nn.CrossEntropyLoss()
 regressionCriterion = nn.MSELoss()
 Adam = optim.Adam(model.parameters(), lr=0.001)
-epochs = 1001
+epochs = 1
 
 predLabels = []
 predBoxes = []
@@ -130,18 +135,19 @@ for epoch in range(epochs):
     model.train()
     Adam.zero_grad()
     for item in dataloader:
-        c, bb = model([image[x[0]:x[1], x[2]:x[3], x[4]:x[5]] for x in item[0]])
-        classLoss = classificationCriterion(c, item[1])
-        regressionLoss = regressionCriterion(bb, item[0])
-        Loss = classLoss + regressionLoss
-        Loss.backward()
-        Adam.step()
-        labels = torch.argmax(c, dim=1)
+        for x in item[0]:
+            c, bb = model(image[:, :, int(x[4]):int(x[5]), int(x[2]):int(x[3]), int(x[0]):int(x[1])])
+            classLoss = classificationCriterion(c, item[1])
+            regressionLoss = regressionCriterion(bb, item[0])
+            Loss = classLoss + regressionLoss
+            Loss.backward()
+            Adam.step()
+            labels = torch.argmax(c, dim=1)
 
-        'read the outputs'
-        predLabels.append(labels)
-        predBoxes.append(bb)
-        lossVals.append(Loss.item())
+            'read the outputs'
+            predLabels.append(labels)
+            predBoxes.append(bb)
+            lossVals.append(Loss.item())
 
     if epoch % 25 == 0:
         print(f'Epoch {epoch}')
