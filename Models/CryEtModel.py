@@ -16,8 +16,8 @@ imageNum = input('image number: ')
 
 # trainingFile = f'/home/cde1/ml/akshay/ransModelRelated/DenoisedData/denoised_{imageNum}.zarr'
 # coordsFile = f'/home/cde1/ml/akshay/ransModelRelated/SortedCoordsFiles/FiveParticlesDataTS_{imageNum}.csv'
-trainingFile = f'/Users/akshaylakkur/GitHub/KaggleCompetition/data/train/static/ExperimentRuns/TS_{imageNum}/VoxelSpacing10.000/denoised.zarr'
-coordsFile = f'/Users/akshaylakkur/PycharmProjects/KaggleComp/SortedCoordsFiles/FiveParticlesDataTS_{imageNum}.csv'
+trainingFile = f'../data/train/static/ExperimentRuns/TS_{imageNum}/VoxelSpacing10.000/denoised.zarr'
+coordsFile = f'../data/SortedCoordsFiles/FiveParticlesDataTS_{imageNum}.csv'
 
 retrieveDataLength = len(pd.read_csv(coordsFile)['Class'])
 class CryEtDataset(Dataset):
