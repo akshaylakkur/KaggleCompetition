@@ -16,8 +16,8 @@ from torch.utils.data import Dataset, DataLoader, TensorDataset
 
 'training file local'
 #imageNum = input('image number: ')
-trainingFile = f'/Users/akshaylakkur/GitHub/KaggleCompetition/data/train/static/ExperimentRuns/TS_5_4/VoxelSpacing10.000/denoised.zarr'
-coordsFile = f'/Users/akshaylakkur/PycharmProjects/KaggleComp/SortedCoordsFiles/FiveParticlesDataTS_5_4.csv'
+trainingFile = f'../data/train/static/ExperimentRuns/TS_5_4/VoxelSpacing10.000/denoised.zarr'
+coordsFile = f'../data/SortedCoordsFiles/FiveParticlesDataTS_5_4.csv'
 
 'training file Kaggle'
 # trainingFile = f'/kaggle/input/czii-cryo-et-object-identification/train/static/ExperimentRuns/TS_{imageNum}/VoxelSpacing10.000/denoised.zarr'
@@ -149,7 +149,7 @@ for epoch in range(epochs):
             predBoxes.append(bb)
             lossVals.append(Loss.item())
 
-    if epoch % 25 == 0:
+    if epoch>-1:# % 2 == 0:
         print(f'Epoch {epoch}')
         print(f'Pred Labels: {predLabels[-1]}')
         print(f'Pred Boxes: {predBoxes[-1]}')
