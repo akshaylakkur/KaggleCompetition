@@ -16,8 +16,8 @@ from torch.utils.data import Dataset, DataLoader, TensorDataset
 
 'training file local'
 #imageNum = input('image number: ')
-trainingFile = f'../data/train/static/ExperimentRuns/TS_5_4/VoxelSpacing10.000/denoised.zarr'
-coordsFile = f'../data/SortedCoordsFiles/FiveParticlesDataTS_5_4.csv'
+trainingFile = f'/Users/akshaylakkur/GitHub/KaggleCompetition/data/train/static/ExperimentRuns/TS_5_4/VoxelSpacing10.000/denoised.zarr'
+coordsFile = f'/Users/akshaylakkur/PycharmProjects/KaggleComp/SortedCoordsFiles/FiveParticlesDataTS_5_4.csv'
 
 'training file Kaggle'
 # trainingFile = f'/kaggle/input/czii-cryo-et-object-identification/train/static/ExperimentRuns/TS_{imageNum}/VoxelSpacing10.000/denoised.zarr'
@@ -34,7 +34,7 @@ class CryEtDataset(Dataset):
     def __init__(self, image, data, transform=None):
         self.image = torch.from_numpy(np.array(zarr.open(image)[0])).unsqueeze(0).unsqueeze(0).expand(dataLength, -1,-1,-1,-1).float()
         'extract coordinates'
-        self.coordinates = torch.tensor(data[['x','y','z']].values/10, dtype=torch.int)
+        self.coordinates = torch.tensor(data[['x','y','z']].values/10, dtype=torch.float32).int()
         self.labels = torch.tensor(data[['Class']].values, dtype=torch.long)
         self.transform = transform
 
@@ -109,7 +109,7 @@ dataset = CryEtDataset(trainingFile, data, transform=None)
 dataset, image = dataset.ToDataset()
 
 # test = torch.randn(size=(dataLength, 1, 4,4,4))
-model = CryEtModel(1, 5, 5)
+model = CryEtModel(1, 64, 5)
 # y = model(test)
 'set up dataset'
 dataset = TensorDataset(dataset['bbox'], dataset['labels'])
@@ -125,7 +125,7 @@ dataloader = DataLoader(dataset, batch_size=dataLength, shuffle=True)
 classificationCriterion = nn.CrossEntropyLoss()
 regressionCriterion = nn.MSELoss()
 Adam = optim.Adam(model.parameters(), lr=0.001)
-epochs = 10
+epochs = 1001
 
 predLabels = []
 predBoxes = []
@@ -136,11 +136,10 @@ for epoch in range(epochs):
     Adam.zero_grad()
     for item in dataloader:
         for x in item[0]:
-            c, bb = model(image[:, :, int(x[4]):int(x[5]), int(x[2]):int(x[3]), int(x[0]):int(x[1])])
-            classLoss = classificationCriterion(c, item[1].squeeze())
-            regressionLoss = regressionCriterion(bb, item[0].squeeze())
+            c, bb = model(image[:, :, x[4]:x[5], x[2]:x[3], x[0]:x[1]])
+            classLoss = classificationCriterion(c, item[1].squeeze().to(torch.long))
+            regressionLoss = regressionCriterion(bb, item[0].squeeze().to(torch.float))
             Loss = classLoss + regressionLoss
-            print('passed')
             Loss.backward()
             Adam.step()
             labels = torch.argmax(c, dim=1)
@@ -154,18 +153,19 @@ for epoch in range(epochs):
         print(f'Epoch {epoch}')
         print(f'Pred Labels: {predLabels[-1]}')
         print(f'Pred Boxes: {predBoxes[-1]}')
+        print(f'Loss: {lossVals[-1]}')
 
 
 
     torch.cuda.empty_cache()
     gc.collect()
 
-plt.figure()
-plt.plot(lossVals)
-plt.title('Loss Values')
-plt.xlabel('Epochs')
-plt.ylabel('Loss')
-plt.grid(True)
-plt.show()
+# plt.figure()
+# plt.plot(lossVals)
+# plt.title('Loss Values')
+# plt.xlabel('Epochs')
+# plt.ylabel('Loss')
+# plt.grid(True)
+# plt.show()
 
 torch.save(model.state_dict(), 'CryEtModel.pth')
