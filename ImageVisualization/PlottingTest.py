@@ -5,7 +5,7 @@ import zarr
 # Load your 3D data
 #image_3d = np.random.rand(100, 100, 100)
 imageNum = '5_4'
-trainingFile = f'/Users/akshaylakkur/GitHub/KaggleCompetition/data/train/static/ExperimentRuns/TS_{imageNum}/VoxelSpacing10.000/denoised.zarr'
+trainingFile = f'../data/train/static/ExperimentRuns/TS_{imageNum}/VoxelSpacing10.000/denoised.zarr'
 image_3d = np.array(zarr.open(trainingFile)[0])
 print(image_3d.shape)
 sx, sy, sz = 90, 90, 90
