@@ -10,14 +10,14 @@ import zarr
 from torch import nn
 from torch.nn import functional as F
 import torch.optim as optim
-import torchvision.transforms as T
+#import torchvision.transforms as T
 from torch.utils.data import Dataset, DataLoader, TensorDataset
 
 
 'training file local'
 imageNum = input('image number: ')
-trainingFile = f'/Users/akshaylakkur/GitHub/KaggleCompetition/data/train/static/ExperimentRuns/TS_{imageNum}/VoxelSpacing10.000/denoised.zarr'
-coordsFile = f'/Users/akshaylakkur/PycharmProjects/KaggleComp/SortedCoordsFiles/FiveParticlesDataTS_{imageNum}.csv'
+trainingFile = f'../data/train/static/ExperimentRuns/TS_{imageNum}/VoxelSpacing10.000/denoised.zarr'
+coordsFile = f'../data/SortedCoordsFiles/FiveParticlesDataTS_{imageNum}.csv'
 
 'training file Kaggle'
 # trainingFile = f'/kaggle/input/czii-cryo-et-object-identification/train/static/ExperimentRuns/TS_{imageNum}/VoxelSpacing10.000/denoised.zarr'
