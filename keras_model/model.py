@@ -1,4 +1,5 @@
 import const
+import keras
 from keras import ops
 from keras.layers import Layer, Input, \
     Reshape, Permute, Concatenate, Dense, \
@@ -20,7 +21,7 @@ class Mul(Layer):
     
     def get_config(self):
         return super().get_config()
-
+'''
 @keras.saving.register_keras_serializable("Form")
 class Form(Layer):
     def __init__(self, **kwargs):
@@ -51,7 +52,7 @@ class Form(Layer):
     
     def get_config(self):
         return super().get_config()
-
+'''
 def main():
     # Input
     i = Input(const.data_in+(1,))
@@ -66,7 +67,7 @@ def main():
     pools = (
             (2,1,1),
             (1,2,2),
-            (2,1,1),
+            (2,2,2),
             (1,2,2),
             )
     pd = i
@@ -84,6 +85,10 @@ def main():
             padding="valid",
             )(pd)
     
+    op = keras.layers.Flatten()(pd)
+    op = keras.layers.Dense(3*6*const.num_predict_per, activation="leaky_relu")(op)
+    op = keras.layers.Reshape((6, 100, 3))(op)
+    '''
     op = Form()(pd) # Transition the data
     
     # Ability to sort
@@ -109,6 +114,7 @@ def main():
             data_format="channels_last",
             padding="valid",
             )(op)
+    '''
     
     o = op
     model = keras.Model(inputs=i, outputs=o)
@@ -116,9 +122,9 @@ def main():
     model.compile(
             optimizer=keras.optimizers.LossScaleOptimizer(keras.optimizers.Adamax(
                 learning_rate=keras.optimizers.schedules.ExponentialDecay(
-                        initial_learning_rate=2e-4,
-                        decay_steps=1e3,
-                        decay_rate=0.98,
+                        initial_learning_rate=7e-4,
+                        decay_steps=1e5,
+                        decay_rate=0.1,
                         staircase=False
                         )
                 )
