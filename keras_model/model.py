@@ -4,136 +4,108 @@ from keras import ops
 from keras.layers import Layer, Input, \
     Reshape, Permute, Concatenate, Dense, \
     Conv3D, MaxPooling3D, MaxPooling2D, UpSampling2D
+from keras.losses import huber
 import numpy as np
 
 prod = lambda p: p[0]*prod(p[1:]) if p else 1
 
-@keras.saving.register_keras_serializable("Mul")
-class Mul(Layer):
+@keras.saving.register_keras_serializable("Influence")
+class Influence(Layer):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
     
-    def __call__(self, i):
-        m1 = i[:, :, :, :, np.newaxis]
-        m2 = i[:, :, :, np.newaxis, :]
-        m = m1 @ m2
-        return Reshape(m.shape[1:-2]+(m.shape[-1]*m.shape[-2],))(m)
+    def call(self, inp):
+        inp = ops.reshape(inp, inp.shape+(1,))
+        tra = ops.swapaxes(inp, -1, -2)
+        mul = inp @ tra
+        s = mul.shape
+        s = s[:-2] + (s[-1]*s[-2],)
+        return ops.reshape(mul, s)
     
     def get_config(self):
         return super().get_config()
-'''
-@keras.saving.register_keras_serializable("Form")
-class Form(Layer):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-    
-    def __call__(self, i):
-        compat = Reshape((1, prod(i.shape[1:-1]) , i.shape[-1]))(i)
-        sized = UpSampling2D(
-            size=(6,1),
-            data_format="channels_last",
-            )(compat)
-        
-        non_softmax = sized[:, :, :, :-6]
-        to_softmax = sized[:, :, :, -6:]
-        softmaxed = ops.softmax(to_softmax)
-        normed = Concatenate(axis=-1)([non_softmax, softmaxed])
-        
-        to_embed = ops.pad(normed, ((0,0),)*3+((0,6),), constant_values=1)
-        embedding = np.zeros(to_embed.shape[1:])
-        for i in range(6):
-            embedding[i, :, -6+i] = 1
-        embedding[:, :, :-6] = 1
-        print(to_embed.shape)
-        print(embedding.shape)
-        embedded = to_embed * embedding
-        
-        return embedded
-    
-    def get_config(self):
-        return super().get_config()
-'''
+
 def main():
     # Input
     i = Input(const.data_in+(1,))
     
     # Protien detection
     structure = (
-            (5, 5, 2), # filters, kernel, strides
-            (15, 15, 1),
-            (10, 8, 1),
-            (9, 6, 2)
+            (4, 7, 1, "leaky_relu"), # filters, kernel, strides, activation
+            (4, 7, 1, "softmax"),
+            (8, 7, 1, None),
+            (12, 7, 1, None),
+            (14, 7, 1, "leaky_relu")
             )
     pools = (
-            (2,1,1),
             (1,2,2),
-            (2,2,2),
-            (1,2,2),
+            2,
+            2,
+            2,
+            2,
             )
     pd = i
-    for (filters, kernel, strides), pool in zip(structure, pools):
+    for (filters, kernel, strides, activation), pool in zip(structure, pools):
         pd = Conv3D(
                 filters=filters,
                 kernel_size=kernel,
                 strides=strides,
                 padding="same",
-                kernel_regularizer="l1",
-                bias_regularizer="l1"
+                kernel_regularizer="l2",
+                bias_regularizer="l1",
                 )(pd)
+        if activation in ('softmax', 'selu'):
+            pd = keras.layers.BatchNormalization()(pd)
+        pd = keras.layers.Activation(activation=activation)(pd)
         pd = MaxPooling3D(
             pool_size=pool,
-            padding="valid",
             )(pd)
+        if filters<10:
+            pd = Influence()(pd)
     
-    op = keras.layers.Flatten()(pd)
-    op = keras.layers.Dense(3*6*const.num_predict_per, activation="leaky_relu")(op)
-    op = keras.layers.Reshape((6, 100, 3))(op)
-    '''
-    op = Form()(pd) # Transition the data
-    
-    # Ability to sort
-    ssize = (
-        (5,3), # features, candidates
-        (6,4),
-        (3,4)
-        )
-    for f,s in ssize:
-        op = Mul()(op)
-        op = Dense(
-            f,
-            activation="linear",
-            )(op)
-        op = Permute((1,3,2))(op)
-        op = Dense(
-            s*const.num_predict_per,
-            activation="linear",
-            )(op)
-        op = Permute((1,3,2))(op)
-        op = MaxPooling2D(
-            pool_size=(1,s),
-            data_format="channels_last",
-            padding="valid",
-            )(op)
-    '''
+    sh = pd.shape
+    num = sh[1]*sh[2]*sh[3]
+    op = keras.layers.Reshape((num, sh[-1]))(pd)
+    op = keras.layers.Conv1D(
+        filters=3,
+        kernel_size=5,
+        padding="same",
+        activation="leaky_relu",
+        kernel_regularizer="l1l2",
+        bias_regularizer="l1",
+        )(op)
+    op = keras.layers.Permute((2,1))(op)
+    op = keras.layers.Dense(100, activation="squareplus")(op)
+    op = keras.layers.Permute((2,1))(op)
     
     o = op
     model = keras.Model(inputs=i, outputs=o)
     
     model.compile(
-            optimizer=keras.optimizers.LossScaleOptimizer(keras.optimizers.Adamax(
+            optimizer=keras.optimizers.LossScaleOptimizer(keras.optimizers.Nadam(
                 learning_rate=keras.optimizers.schedules.ExponentialDecay(
                         initial_learning_rate=7e-4,
-                        decay_steps=1e5,
-                        decay_rate=0.1,
+                        decay_steps=1e2,
+                        decay_rate=1e-3,
                         staircase=False
                         )
                 )
                 ),
-            loss="mse",
+            loss=loss,
             metrics=[
                 "mae",
+                "mse",
                 ]
             )
     model.summary()
     return model
+
+@keras.saving.register_keras_serializable("loss")
+def loss(y_true, y_pred):
+    ae = abs(y_pred-y_true)
+    se = ae*ae
+    
+    ae = ae.mean()
+    se = se.mean()
+    return ae*se/1e7
 

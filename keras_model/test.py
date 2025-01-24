@@ -12,11 +12,11 @@ else:
 mdl = keras.models.load_model(f"./saved-models/{num}.keras")
 mdl.summary()
 
-xtest, ytest = read.data(True)
+xtest, ytest = read.data()
 mdl.evaluate(xtest, ytest)
 
-head = 3
-tail = 3
+head = 8
+tail = 8
 pred = mdl.predict(xtest)[0, 0]
 tru = ytest[0, 0]
 print(pred[:head])

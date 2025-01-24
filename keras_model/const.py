@@ -1,5 +1,5 @@
 import os
-os.environ['KERAS_BACKEND'] = 'jax'
+os.environ['KERAS_BACKEND'] = 'torch'
 
 base_shape = (92, 315, 315)
 data_in = base_shape
@@ -10,4 +10,4 @@ data_out = tuple(int(dim*scale) for dim in base_shape)+(6,)
 
 num_predict_per = 100
 
-mdnum = "11"
+mdnum = "12"

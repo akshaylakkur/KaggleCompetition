@@ -4,13 +4,16 @@ import read
 import numpy as np
 import model
 
-mdl = model.main()
+observing = 0
+
 xi, yi = read.data()
+yi = yi[:, observing]
 print(xi.shape)
 print(yi.shape)
-mdl.fit(xi[:2], yi[:2], epochs=200)
-mdl.fit(xi, yi, epochs=100, batch_size=10)
+mdl = model.main()
+mdl.fit(xi, yi, epochs=100, batch_size=5)
 mdl.save(f"saved-models/{const.mdnum}.keras")
 
 xtest, ytest = read.data(True)
+ytest = ytest[:, observing]
 mdl.evaluate(xtest, ytest)
